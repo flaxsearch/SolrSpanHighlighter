@@ -1,7 +1,10 @@
 package com.github.flaxsearch.solr.spanhighlighter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -11,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
@@ -21,8 +25,11 @@ import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.spans.SpanCollector;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.schema.IndexSchema;
+import org.apache.solr.schema.SchemaField;
+import org.codehaus.janino.CodeContext.Offset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 
 public class DocumentHighlighter {
@@ -60,7 +67,7 @@ public class DocumentHighlighter {
         searcher.setQueryCache(null);
         
         // collect the matching spans for each of the highlighting tasks (in the same sorted collector)
-        HlSpanCollector collector = new HlSpanCollector();
+        OffsetCollector collector = new OffsetCollector();
         for (HighlightingTask task : tasks) {
             LOG.debug("collecting spans for {}", task);
             collector.setTask(task);
@@ -89,11 +96,74 @@ public class DocumentHighlighter {
             }
         }
         
-        for (Offset off : collector.offsets) {
-            System.out.println("FIXME offset=" + off);
+        // Now generate the highlighted text to return.
+        Map<String, List<String>> results = new HashMap<>();
+        
+        for(Map.Entry<String, SortedSet<Offset>> entry : collector.offsets.entrySet()) {
+            String field = entry.getKey();
+            List<Offset> offsets = mergeOffsets(entry.getValue());
+            List<String> fieldResults = new ArrayList<>(); 
+            int fieldOffsetStart = 0;
+            
+            for (String fieldValue : doc.getValues(field)) {
+                final int fieldOffsetStart2 = fieldOffsetStart;                 // for lambda below
+                final int fieldOffsetEnd = fieldOffsetStart + fieldValue.length();
+                        
+                // find which, if any, offsets apply to this value (OPTIMIZE whole list each time is not efficient)
+                List<Offset> currentOffsets = offsets.stream().filter(x -> 
+                    x.start < fieldOffsetEnd && x.end >= fieldOffsetStart2).collect(Collectors.toList());
+                
+                if (currentOffsets.size() > 0) {
+                    StringBuilder builder = new StringBuilder();
+                    int hlOffsetEnd = 0;
+                    for (Offset off : currentOffsets) {
+                        // adjust offsets for current value
+                        int offStart = Math.max(0, off.start - fieldOffsetStart);
+                        int offEnd = Math.min(fieldOffsetEnd, off.end - fieldOffsetStart);
+
+                        builder.append(fieldValue, hlOffsetEnd, offStart);
+                        builder.append(off.task.startTag);
+                        builder.append(fieldValue, offStart, offEnd);
+                        builder.append(off.task.endTag);
+                        
+                        hlOffsetEnd = offEnd;
+                    }
+                    builder.append(fieldValue, hlOffsetEnd, fieldValue.length());
+                    fieldResults.add(builder.toString());
+                }
+                
+                // the next field offset begins one after the current end
+                fieldOffsetStart = fieldOffsetEnd + 1;
+            }
+            results.put(field, fieldResults);
+
         }
 
-        return null;
+        return results;
+    }
+    
+    /**
+     * Merge a collection of offsets (which may overlap.)
+     * @param offsets The offsets to merge, which are assumed to be sorted by the start offset.
+     * @return The merged offsets.
+     */
+    protected List<Offset> mergeOffsets(Collection<Offset> offsets) {
+        List<Offset> ret = new ArrayList<>(offsets.size());
+        for (Offset off : offsets) {
+            if (ret.isEmpty()) {
+                ret.add(off);
+            }
+            else {
+                int end = ret.size() - 1;
+                if (ret.get(end).overlaps(off)) {
+                    ret.set(end, ret.get(end).merge(off));
+                }
+                else {
+                    ret.add(off);
+                }
+            }
+        }
+        return ret;
     }
 
     /**
@@ -101,9 +171,9 @@ public class DocumentHighlighter {
      * Also includes the highlighting task which generated this offset, so we know the priorities for merging.  
      */
     private static class Offset implements Comparable<Offset> {
-        public int start;
-        public int end;
-        public HighlightingTask task;
+        public final int start;
+        public final int end;
+        public final HighlightingTask task;
         
         public Offset(int start, int end, HighlightingTask task) {
             this.start = start;
@@ -118,7 +188,7 @@ public class DocumentHighlighter {
         
         @Override
         public String toString() {
-            return "Offset(" + start + ", " + end + ")";
+            return "Offset:"+ start + "-" + end;
         }
         
         /**
@@ -140,8 +210,8 @@ public class DocumentHighlighter {
     /**
      * Convenience class for collecting offsets from a span query.
      */
-    private static class HlSpanCollector implements SpanCollector {
-        SortedSet<Offset> offsets = new TreeSet<>();
+    private static class OffsetCollector implements SpanCollector {
+        Map<String, SortedSet<Offset>> offsets = new HashMap<>(); 
         private HighlightingTask currentTask;
         
         public void setTask(HighlightingTask task) {
@@ -150,7 +220,11 @@ public class DocumentHighlighter {
         
         @Override
         public void collectLeaf(PostingsEnum postingsEnum, int i, Term term) throws IOException {
-            offsets.add(new Offset(postingsEnum.startOffset(), postingsEnum.endOffset(), currentTask));
+            String field =  term.field();
+            if (offsets.containsKey(field) == false) {
+                offsets.put(field, new TreeSet<>());
+            }
+            offsets.get(field).add(new Offset(postingsEnum.startOffset(), postingsEnum.endOffset(), currentTask));
         }
         
         @Override
