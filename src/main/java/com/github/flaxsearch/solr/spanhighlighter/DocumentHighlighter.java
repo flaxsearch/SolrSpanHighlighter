@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
@@ -25,8 +24,6 @@ import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.spans.SpanCollector;
 import org.apache.solr.schema.FieldType;
 import org.apache.solr.schema.IndexSchema;
-import org.apache.solr.schema.SchemaField;
-import org.codehaus.janino.CodeContext.Offset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,10 +103,10 @@ public class DocumentHighlighter {
             int fieldOffsetStart = 0;
             
             for (String fieldValue : doc.getValues(field)) {
-                final int fieldOffsetStart2 = fieldOffsetStart;                 // for lambda below
                 final int fieldOffsetEnd = fieldOffsetStart + fieldValue.length();
                         
                 // find which, if any, offsets apply to this value (OPTIMIZE whole list each time is not efficient)
+                final int fieldOffsetStart2 = fieldOffsetStart;     // for lambda
                 List<Offset> currentOffsets = offsets.stream().filter(x -> 
                     x.start < fieldOffsetEnd && x.end >= fieldOffsetStart2).collect(Collectors.toList());
                 
@@ -117,7 +114,7 @@ public class DocumentHighlighter {
                     StringBuilder builder = new StringBuilder();
                     int hlOffsetEnd = 0;
                     for (Offset off : currentOffsets) {
-                        // adjust offsets for current value
+                        // adjust offsets for current value. Allow offsets to overlap incompletely (FIXME is this necessary?)
                         int offStart = Math.max(0, off.start - fieldOffsetStart);
                         int offEnd = Math.min(fieldOffsetEnd, off.end - fieldOffsetStart);
 
@@ -136,7 +133,6 @@ public class DocumentHighlighter {
                 fieldOffsetStart = fieldOffsetEnd + 1;
             }
             results.put(field, fieldResults);
-
         }
 
         return results;

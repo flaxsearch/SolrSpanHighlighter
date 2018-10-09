@@ -61,7 +61,6 @@ public class SpanExtractor {
      * @throws IOException on error
      */
     public static void collect(Scorer scorer, SpanCollector collector) throws IOException {
-
         List<Spans> allSpans = getSpans(scorer);
         int doc = scorer.docID();
 

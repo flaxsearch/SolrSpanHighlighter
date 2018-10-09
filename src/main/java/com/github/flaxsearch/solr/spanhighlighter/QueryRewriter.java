@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+
 /**
  *   FIXME
  *    
@@ -56,7 +57,7 @@ public class QueryRewriter {
             return new SpanOffsetReportingQuery(new SpanTermQuery(((TermQuery) in).getTerm()));
         
         if (in instanceof BooleanQuery)
-            return new ForceNoBulkScoringQuery(in);
+            return rewriteBoolean((BooleanQuery) in);
 
         if (in instanceof MultiTermQuery)
             return new SpanOffsetReportingQuery(new SpanMultiTermQueryWrapper<>((MultiTermQuery) in));
@@ -89,6 +90,14 @@ public class QueryRewriter {
             subQueries.add(rewrite(subQuery));
         }        
         return new DisjunctionMaxQuery(subQueries, disjunctionMaxQuery.getTieBreakerMultiplier());
+    }
+
+    protected Query rewriteBoolean(BooleanQuery bq) {
+        BooleanQuery.Builder newbq = new BooleanQuery.Builder();
+        for (BooleanClause clause : bq) {
+            newbq.add(rewrite(clause.getQuery()), clause.getOccur());
+        }
+        return new ForceNoBulkScoringQuery(newbq.build());
     }
 
     protected Query rewriteTermsQuery(TermInSetQuery query) {
