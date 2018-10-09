@@ -26,6 +26,7 @@ public class testDocumentHighlighter {
 
     private static FieldType fieldType;
     private static IndexSchema schema;
+    private static QueryParser PARSER = new QueryParser("text", new StandardAnalyzer());
     
     @BeforeClass
     public static void setup() {
@@ -64,11 +65,11 @@ public class testDocumentHighlighter {
         assertThat(results.get("text")).containsExactly("what is my [banana] doing over there?");
     }
 
-    // FIXME test phrase and within queries
+    // FIXME test phrase and proximity queries
     
     @Test
     public void testAndQuery() throws ParseException {
-        Query query = new QueryParser("text", new StandardAnalyzer()).parse("+banana +over");        
+        Query query = PARSER.parse("+banana +over");        
         Query rewritten = QueryRewriter.INSTANCE.rewrite(query);
         List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
         
@@ -82,7 +83,7 @@ public class testDocumentHighlighter {
 
     @Test
     public void testOrQuery() throws ParseException {
-        Query query = new QueryParser("text", new StandardAnalyzer()).parse("my banana is the best");        
+        Query query = PARSER.parse("my banana is the best");        
         Query rewritten = QueryRewriter.INSTANCE.rewrite(query);
         List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
         
@@ -117,7 +118,7 @@ public class testDocumentHighlighter {
 
     @Test
     public void testMultiFields() throws ParseException {
-        Query query = new QueryParser("text", new StandardAnalyzer()).parse("band:war song:baby lyrics:belief");
+        Query query = PARSER.parse("band:war song:baby lyrics:belief");
         Query rewritten = QueryRewriter.INSTANCE.rewrite(query);        
         List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
         
@@ -133,6 +134,7 @@ public class testDocumentHighlighter {
         assertThat(results.get("band")).containsExactly("The [War] on Drugs");
         assertThat(results.get("song")).containsExactly("[Baby] Missiles");
         assertThat(results.get("lyrics")).containsExactly("I'm on the back of a new [belief]");
+        assertThat(results.get("album")).isNull();
     }
 
     public static Document makeDoc(String... fields) {
