@@ -118,23 +118,23 @@ public class testDocumentHighlighter {
 
     @Test
     public void testMultiFields() throws ParseException {
-        Query query = PARSER.parse("band:war song:baby lyrics:belief");
+        Query query = PARSER.parse("f1:foo f2:bar f3:wombat");
         Query rewritten = QueryRewriter.INSTANCE.rewrite(query);        
         List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
         
-        Document doc = makeDoc("band", "The War on Drugs",
-                               "song", "Baby Missiles",
-                               "lyrics", "I'm on the back of a new belief",
-                               "album", "Slave Ambient");
+        Document doc = makeDoc("f1", "foo bar wombat",
+                               "f2", "foo bar wombat", 
+                               "f3", "foo bar wombat",
+                               "f4", "foo bar wombat");
 
         DocumentHighlighter highlighter = new DocumentHighlighter(schema, tasks, new String[] { "*" });
 
         Map<String, List<String>> results = highlighter.highlightDoc(doc);
-        assertThat(results.keySet()).contains("band", "song", "lyrics");
-        assertThat(results.get("band")).containsExactly("The [War] on Drugs");
-        assertThat(results.get("song")).containsExactly("[Baby] Missiles");
-        assertThat(results.get("lyrics")).containsExactly("I'm on the back of a new [belief]");
-        assertThat(results.get("album")).isNull();
+        assertThat(results.keySet()).contains("f1", "f2", "f3");
+        assertThat(results.get("f1")).containsExactly("[foo] bar wombat");
+        assertThat(results.get("f2")).containsExactly("foo [bar] wombat");
+        assertThat(results.get("f3")).containsExactly("foo bar [wombat]");
+        assertThat(results.get("f4")).isNull();;
     }
 
     public static Document makeDoc(String... fields) {
