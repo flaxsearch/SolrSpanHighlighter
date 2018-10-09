@@ -116,7 +116,7 @@ public class DocumentHighlighter {
                     for (Offset off : currentOffsets) {
                         // adjust offsets for current value. Allow offsets to overlap incompletely (FIXME is this necessary?)
                         int offStart = Math.max(0, off.start - fieldOffsetStart);
-                        int offEnd = Math.min(fieldOffsetEnd, off.end - fieldOffsetStart);
+                        int offEnd = Math.min(fieldValue.length(), off.end - fieldOffsetStart);
 
                         builder.append(fieldValue, hlOffsetEnd, offStart);
                         builder.append(off.task.startTag);
