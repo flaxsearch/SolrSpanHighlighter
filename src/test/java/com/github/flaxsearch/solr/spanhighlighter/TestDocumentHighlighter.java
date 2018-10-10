@@ -22,7 +22,7 @@ import org.apache.solr.schema.IndexSchema;
 
 import static org.assertj.core.api.Assertions.*;
 
-public class testDocumentHighlighter {
+public class TestDocumentHighlighter {
 
     private static FieldType fieldType;
     private static IndexSchema schema;
