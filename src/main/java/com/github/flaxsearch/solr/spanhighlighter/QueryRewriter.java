@@ -128,7 +128,7 @@ public class QueryRewriter {
 
     /*
     * This method is only able to rewrite standard phrases where each word must follow the previous one
-    * with no gaps or overlaps.  This does however cover all common uses.
+    * with no gaps or overlaps.  This means, for example, that phrases must not have stopwords in them.
     */
     protected Query rewritePhraseQuery(PhraseQuery query) {
         Term[] terms = query.getTerms();
@@ -140,7 +140,8 @@ public class QueryRewriter {
                 // positions must increase by 1 each time (i-1 is safe as the if can't be true for i=0)
                 throw new IllegalArgumentException("Don't know how to rewrite PhraseQuery with holes or overlaps " +
                         "(position must increase by 1 each time but found term " + terms[i-1] + " at position " +
-                        positions[i-1] + " followed by term " + terms[i] + " at position " + positions[i] + ")" + query);
+                        positions[i-1] + " followed by term " + terms[i] + " at position " + positions[i] + ")" + query +
+                        " (this could be caused, for example, by a stopwords filter in the query analyzer)");
             }
 
             spanQueries[i] = new SpanTermQuery(terms[i]);

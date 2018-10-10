@@ -65,8 +65,64 @@ public class testDocumentHighlighter {
         assertThat(results.get("text")).containsExactly("what is my [banana] doing over there?");
     }
 
-    // FIXME test phrase and proximity queries
-    
+    @Test
+    public void testPhrase() throws ParseException {
+        Query query = PARSER.parse("\"my friend\"");
+        Query rewritten = QueryRewriter.INSTANCE.rewrite(query);
+        List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
+        
+        Document doc = makeDoc("text", "Let me introduce you to my friend under the tree, Spider and me.");
+        DocumentHighlighter highlighter = new DocumentHighlighter(schema, tasks, new String[] { "text" });
+
+        Map<String, List<String>> results = highlighter.highlightDoc(doc);
+        assertThat(results.keySet()).containsExactly("text");
+        assertThat(results.get("text")).containsExactly("Let me introduce you to [my] [friend] under the tree, Spider and me.");
+    }
+
+    @Test
+    public void testSloppyPhrase() throws ParseException {
+        Query query = PARSER.parse("\"introduce friend\"~4");
+        Query rewritten = QueryRewriter.INSTANCE.rewrite(query);
+        List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
+        
+        Document doc = makeDoc("text", "Let me introduce you to my friend under the tree, Spider and me.");
+        DocumentHighlighter highlighter = new DocumentHighlighter(schema, tasks, new String[] { "text" });
+
+        Map<String, List<String>> results = highlighter.highlightDoc(doc);
+        assertThat(results.keySet()).containsExactly("text");
+        assertThat(results.get("text")).containsExactly("Let me [introduce] you to my [friend] under the tree, Spider and me.");
+    }
+
+    @Test
+    public void testOverlappingPhrase() throws ParseException {
+        Query query = PARSER.parse("\"tree spider\"");
+        Query rewritten = QueryRewriter.INSTANCE.rewrite(query);
+        List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
+        
+        Document doc = makeDoc("text", "Let me introduce you to my friend under the tree",
+                               "text", "Spider and me.");
+        DocumentHighlighter highlighter = new DocumentHighlighter(schema, tasks, new String[] { "text" });
+
+        Map<String, List<String>> results = highlighter.highlightDoc(doc);
+        assertThat(results.keySet()).containsExactly("text");
+        assertThat(results.get("text")).containsExactly("Let me introduce you to my friend under the [tree]", "[Spider] and me.");
+    }
+
+    @Test
+    public void testSloppyOverlappingPhrase() throws ParseException {
+        Query query = PARSER.parse("\"friend spider\"~4");
+        Query rewritten = QueryRewriter.INSTANCE.rewrite(query);
+        List<HighlightingTask> tasks = Arrays.asList(new HighlightingTask(0, rewritten, "[", "]")); 
+        
+        Document doc = makeDoc("text", "Let me introduce you to my friend under the tree",
+                               "text", "Spider and me.");
+        DocumentHighlighter highlighter = new DocumentHighlighter(schema, tasks, new String[] { "text" });
+
+        Map<String, List<String>> results = highlighter.highlightDoc(doc);
+        assertThat(results.keySet()).containsExactly("text");
+        assertThat(results.get("text")).containsExactly("Let me introduce you to my [friend] under the tree", "[Spider] and me.");
+    }
+
     @Test
     public void testAndQuery() throws ParseException {
         Query query = PARSER.parse("+banana +over");        
